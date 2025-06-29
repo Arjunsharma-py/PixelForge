@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QAction
 from ui.ui_main import MainUI
 from image_tools import compress_and_resize_image
-from config.settings import APP_VERSION
+from config.settings import APP_VERSION, DEFAULT_OUTPUT_DIR
 import sys
 import os
 
@@ -17,6 +17,8 @@ class App(MainUI):
             lambda val: self.quality_label.setText(f"Quality: {val}")
         )
         self.process_button.clicked.connect(self.process_image)
+        self.clear_button.clicked.connect(self.clear_form)
+
 
     def setup_menu_bar(self):
         menu_bar = self.menuBar()
@@ -46,23 +48,49 @@ class App(MainUI):
             "© 2024 PixelForge Contributors"
         )
 
-
     def select_image(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "Images (*.png *.jpg *.jpeg *.webp)")
         if file_path:
             self.image_path = file_path
             self.label.setText(os.path.basename(file_path))
 
-    def select_image(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "Images (*.png *.jpg *.jpeg *.webp)")
-        if file_path:
-            self.image_path = file_path
-            self.label.setText(os.path.basename(file_path))
+            # Store original image
+            self.original_pixmap = QPixmap(file_path)
+            self.update_preview()
 
-            # Load and scale preview
-            pixmap = QPixmap(file_path)
-            scaled_pixmap = pixmap.scaled(self.preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    def update_preview(self):
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            scaled_pixmap = self.original_pixmap.scaled(
+                self.preview_label.size(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
             self.preview_label.setPixmap(scaled_pixmap)
+            self.preview_label.setStyleSheet("border: 2px solid #666;")  # Remove dashed effect once image is loaded
+
+
+    def clear_form(self):
+        self.image_path = None
+        self.original_pixmap = None
+
+        self.label.setText("No image selected")
+        self.preview_label.clear()
+        self.preview_label.setText("No Image Loaded")
+        self.preview_label.setStyleSheet("""
+            QLabel {
+                background-color: transparent;
+                border: 2px dashed #aaa;
+                color: #777;
+                font-style: italic;
+            }
+        """)
+
+        self.width_input.clear()
+        self.height_input.clear()
+        self.quality_slider.setValue(75)
+        self.format_box.setCurrentIndex(0)
+        self.aspect_check.setChecked(False)
+
 
 
     def process_image(self):
@@ -70,7 +98,6 @@ class App(MainUI):
             QMessageBox.warning(self, "No Image", "Please select an image first.")
             return
 
-        from config import DEFAULT_OUTPUT_DIR
         os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 
         try:
@@ -90,7 +117,26 @@ class App(MainUI):
             )
 
             if success:
-                QMessageBox.information(self, "Success", message)
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle("Success")
+                msg_box.setText(message)
+                msg_box.setIcon(QMessageBox.Information)
+
+                open_button = msg_box.addButton("Open Image", QMessageBox.ActionRole)
+                ok_button = msg_box.addButton(QMessageBox.Ok)
+
+                msg_box.exec()
+
+                if msg_box.clickedButton() == open_button:
+                    try:
+                        os.startfile(output_path)  # Windows
+                    except AttributeError:
+                        import subprocess, platform
+                        if platform.system() == "Darwin":  # macOS
+                            subprocess.call(["open", output_path])
+                        else:  # Linux
+                            subprocess.call(["xdg-open", output_path])
+
             else:
                 QMessageBox.critical(self, "Error", message)
 

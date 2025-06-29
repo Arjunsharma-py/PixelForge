@@ -18,4 +18,4 @@ DEFAULT_HEIGHT = None
 
 # UI settings
 APP_TITLE = "PixelForge – Image Tools"
-WINDOW_SIZE = (450, 400)
+WINDOW_SIZE = (550, 550)
